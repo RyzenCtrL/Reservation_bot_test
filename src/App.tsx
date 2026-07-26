@@ -155,8 +155,8 @@ function App() {
   }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <div className="flex-1 overflow-y-auto">
+    <div className="flex min-h-full min-w-0 flex-1 flex-col overflow-x-hidden">
+      <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
         <AnimatePresence mode="wait" custom={direction} initial={false}>
           <motion.div
             key={step + String(confirmed)}
@@ -166,6 +166,7 @@ function App() {
             animate="center"
             exit="exit"
             transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="min-w-0"
           >
             {content}
           </motion.div>

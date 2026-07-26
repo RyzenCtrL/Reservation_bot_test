@@ -11,8 +11,15 @@ const days = nextDays(14);
 
 export function DateSelector({ selectedDate, onSelect }: DateSelectorProps) {
   return (
-    <div className="pb-6">
-      <div className="no-scrollbar flex gap-2.5 overflow-x-auto px-5 pb-1">
+    <div className="min-w-0 pb-6">
+      <div
+        className="no-scrollbar flex snap-x snap-proximity gap-2.5 overflow-x-auto px-5 pb-1"
+        style={{
+          maskImage: 'linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent)',
+          WebkitMaskImage:
+            'linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent)',
+        }}
+      >
         {days.map((day) => {
           const active = day.iso === selectedDate;
           return (
@@ -24,7 +31,7 @@ export function DateSelector({ selectedDate, onSelect }: DateSelectorProps) {
                 haptics.selection();
                 onSelect(day.iso);
               }}
-              className={`flex min-h-[64px] w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl border transition-colors ${
+              className={`flex min-h-[64px] w-14 shrink-0 snap-start flex-col items-center justify-center gap-0.5 rounded-2xl border transition-colors ${
                 active
                   ? 'border-accent bg-accent-soft'
                   : 'border-border bg-surface active:bg-surface-2'
