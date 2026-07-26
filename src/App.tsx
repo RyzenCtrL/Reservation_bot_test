@@ -166,7 +166,7 @@ function App() {
             animate="center"
             exit="exit"
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="min-w-0"
+            className="flex min-h-full min-w-0 flex-col"
           >
             {content}
           </motion.div>
@@ -194,7 +194,7 @@ interface SuccessScreenProps {
 
 function SuccessScreen({ service, master, dateISO, time, onRestart }: SuccessScreenProps) {
   return (
-    <div className="safe-top flex flex-col items-center px-6 pb-10 pt-16 text-center">
+    <div className="safe-top flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
       <motion.div
         initial={{ scale: 0.4, opacity: 0 }}
         animate={{ scale: [0.4, 1.15, 0.95, 1.03, 1], opacity: 1 }}
