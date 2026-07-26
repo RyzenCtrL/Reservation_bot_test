@@ -8,11 +8,13 @@ interface DateSelectorProps {
   onSelect: (iso: string) => void;
 }
 
+const DRAG_THRESHOLD = 6;
+
 const days = nextDays(14);
 
 export function DateSelector({ selectedDate, onSelect }: DateSelectorProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const drag = useRef({ down: false, startX: 0, startScroll: 0, moved: false });
+  const drag = useRef({ down: false, startX: 0, startScroll: 0, moved: false, pointerId: 0 });
 
   // Desktop mice only scroll vertically; without this the strip is stuck
   // for anyone without a touchpad or a Telegram phone.
@@ -32,23 +34,41 @@ export function DateSelector({ selectedDate, onSelect }: DateSelectorProps) {
   }, []);
 
   // Click-and-drag scrolling for mouse users (touch already scrolls natively).
+  // Pointer capture is only engaged once real dragging is detected — grabbing
+  // it eagerly on pointerdown would steal the click from whichever date card
+  // is underneath, making every date look unclickable.
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'touch') return;
     const el = scrollerRef.current;
     if (!el) return;
-    drag.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false };
-    el.setPointerCapture(e.pointerId);
+    drag.current = {
+      down: true,
+      startX: e.clientX,
+      startScroll: el.scrollLeft,
+      moved: false,
+      pointerId: e.pointerId,
+    };
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const el = scrollerRef.current;
     if (!el || !drag.current.down) return;
     const dx = e.clientX - drag.current.startX;
-    if (Math.abs(dx) > 4) drag.current.moved = true;
+
+    if (!drag.current.moved) {
+      if (Math.abs(dx) <= DRAG_THRESHOLD) return;
+      drag.current.moved = true;
+      el.setPointerCapture(drag.current.pointerId);
+    }
+
     el.scrollLeft = drag.current.startScroll - dx;
   };
 
   const endDrag = () => {
+    const el = scrollerRef.current;
+    if (el && drag.current.moved && el.hasPointerCapture(drag.current.pointerId)) {
+      el.releasePointerCapture(drag.current.pointerId);
+    }
     drag.current.down = false;
   };
 
