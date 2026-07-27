@@ -24,5 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ORDER BY m.name
         `;
 
-  res.status(200).json({ masters: rows });
+  const masters = rows.map((row) => ({ ...row, rating: Number(row.rating) }));
+
+  res.status(200).json({ masters });
 }
