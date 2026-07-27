@@ -1,4 +1,4 @@
-import { useMemo, useReducer, type ReactNode } from 'react';
+import { useEffect, useReducer, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ScreenHeader } from './components/ScreenHeader';
 import { ServiceSelector } from './components/ServiceSelector';
@@ -7,11 +7,13 @@ import { DateSelector } from './components/DateSelector';
 import { TimeSlots } from './components/TimeSlots';
 import { BookingSummary } from './components/BookingSummary';
 import { ConfirmButton } from './components/ConfirmButton';
+import { LoadingState } from './components/LoadingState';
 import { bookingReducer, initialBookingState } from './state/bookingReducer';
-import { MASTERS, SERVICES, getSlotsFor } from './data/mockData';
+import { createBooking, fetchMasters, fetchServices, fetchSlots } from './lib/api';
 import { formatDateLabel } from './utils/date';
 import { haptics } from './telegram/haptics';
-import type { Step } from './types';
+import { useTelegramUser } from './telegram/useTelegramUser';
+import type { Master, Service, Step, TimeSlot } from './types';
 
 const slideVariants = {
   enter: (direction: 1 | -1) => ({ opacity: 0, x: direction * 24 }),
@@ -22,35 +24,101 @@ const slideVariants = {
 function App() {
   const [state, dispatch] = useReducer(bookingReducer, initialBookingState);
   const { step, serviceId, masterId, dateISO, time, direction, confirmed } = state;
+  const telegramUser = useTelegramUser();
 
-  const service = useMemo(() => SERVICES.find((s) => s.id === serviceId) ?? null, [serviceId]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
 
-  const availableMasters = useMemo(
-    () => (serviceId ? MASTERS.filter((m) => m.serviceIds.includes(serviceId)) : MASTERS),
-    [serviceId],
-  );
+  const [masters, setMasters] = useState<Master[]>([]);
+  const [mastersLoading, setMastersLoading] = useState(false);
 
-  const master = useMemo(() => MASTERS.find((m) => m.id === masterId) ?? null, [masterId]);
+  const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
-  const slots = useMemo(
-    () => (masterId && dateISO ? getSlotsFor(masterId, dateISO) : []),
-    [masterId, dateISO],
-  );
+  const [submitting, setSubmitting] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchServices()
+      .then(setServices)
+      .catch(() => setServices([]))
+      .finally(() => setServicesLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!serviceId) {
+      setMasters([]);
+      return;
+    }
+    setMastersLoading(true);
+    fetchMasters(serviceId)
+      .then(setMasters)
+      .catch(() => setMasters([]))
+      .finally(() => setMastersLoading(false));
+  }, [serviceId]);
+
+  useEffect(() => {
+    if (!masterId || !dateISO) {
+      setSlots([]);
+      return;
+    }
+    setSlotsLoading(true);
+    fetchSlots(masterId, dateISO)
+      .then(setSlots)
+      .catch(() => setSlots([]))
+      .finally(() => setSlotsLoading(false));
+  }, [masterId, dateISO]);
+
+  const service = services.find((s) => s.id === serviceId) ?? null;
+  const master = masters.find((m) => m.id === masterId) ?? null;
 
   const handleEdit = (target: Step) => dispatch({ type: 'GO_TO_STEP', step: target });
   const handleBack = () => dispatch({ type: 'GO_BACK' });
 
-  const handleConfirm = () => {
-    if (!service || !master || !dateISO || !time) return;
-    console.log('Booking confirmed:', {
-      service: service.name,
-      master: master.name,
+  const handleSelectTime = (t: string) => {
+    setBookingError(null);
+    dispatch({ type: 'SELECT_TIME', time: t });
+  };
+
+  const handleConfirm = async () => {
+    if (!service || !master || !dateISO || !time || submitting) return;
+
+    setSubmitting(true);
+    setBookingError(null);
+
+    const result = await createBooking({
+      masterId: master.id,
+      serviceId: service.id,
       date: dateISO,
       time,
-      price: service.price,
+      clientTelegramId: telegramUser.id,
+      clientName: telegramUser.name,
     });
-    haptics.notification('success');
-    dispatch({ type: 'CONFIRM' });
+
+    setSubmitting(false);
+
+    if (result.ok) {
+      console.log('Booking confirmed:', {
+        service: service.name,
+        master: master.name,
+        date: dateISO,
+        time,
+        price: service.price,
+        bookingId: result.bookingId,
+      });
+      haptics.notification('success');
+      dispatch({ type: 'CONFIRM' });
+      return;
+    }
+
+    haptics.notification('error');
+    if (result.error === 'slot_taken') {
+      setBookingError('Этот слот только что заняли — выберите другое время.');
+      fetchSlots(master.id, dateISO).then(setSlots);
+      dispatch({ type: 'GO_TO_STEP', step: 'time' });
+    } else {
+      setBookingError('Не получилось создать запись. Попробуйте ещё раз.');
+    }
   };
 
   const handleRestart = () => {
@@ -65,11 +133,15 @@ function App() {
       content = (
         <>
           <ScreenHeader step={step} title="Выберите услугу" subtitle="Что будем делать сегодня?" />
-          <ServiceSelector
-            services={SERVICES}
-            selectedId={serviceId}
-            onSelect={(id) => dispatch({ type: 'SELECT_SERVICE', serviceId: id })}
-          />
+          {servicesLoading ? (
+            <LoadingState label="Загружаем услуги..." />
+          ) : (
+            <ServiceSelector
+              services={services}
+              selectedId={serviceId}
+              onSelect={(id) => dispatch({ type: 'SELECT_SERVICE', serviceId: id })}
+            />
+          )}
         </>
       );
       break;
@@ -83,11 +155,15 @@ function App() {
             subtitle={service ? `Специалисты по услуге «${service.name}»` : undefined}
             onBack={handleBack}
           />
-          <MasterSelector
-            masters={availableMasters}
-            selectedId={masterId}
-            onSelect={(id) => dispatch({ type: 'SELECT_MASTER', masterId: id })}
-          />
+          {mastersLoading ? (
+            <LoadingState label="Ищем мастеров..." />
+          ) : (
+            <MasterSelector
+              masters={masters}
+              selectedId={masterId}
+              onSelect={(id) => dispatch({ type: 'SELECT_MASTER', masterId: id })}
+            />
+          )}
         </>
       );
       break;
@@ -118,11 +194,16 @@ function App() {
             subtitle={dateISO ? formatDateLabel(dateISO) : undefined}
             onBack={handleBack}
           />
-          <TimeSlots
-            slots={slots}
-            selectedTime={time}
-            onSelect={(t) => dispatch({ type: 'SELECT_TIME', time: t })}
-          />
+          {bookingError && (
+            <p className="mx-5 mb-4 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-300">
+              {bookingError}
+            </p>
+          )}
+          {slotsLoading ? (
+            <LoadingState label="Проверяем расписание..." />
+          ) : (
+            <TimeSlots slots={slots} selectedTime={time} onSelect={handleSelectTime} />
+          )}
         </>
       );
       break;
@@ -175,7 +256,7 @@ function App() {
 
       {step === 'confirm' && !confirmed && (
         <ConfirmButton
-          disabled={!service || !master || !dateISO || !time}
+          disabled={!service || !master || !dateISO || !time || submitting}
           confirmed={confirmed}
           onConfirm={handleConfirm}
         />
