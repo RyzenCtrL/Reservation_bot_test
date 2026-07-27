@@ -15,9 +15,12 @@ export function ConfirmButton({ disabled = false, confirmed, onConfirm }: Confir
     onConfirm();
   };
 
+  // Telegram's native MainButton renders in its own theme color (usually
+  // blue), which clashes with the app's pink/lavender palette and duplicates
+  // our in-page button. Keep it hidden and use only the custom button below.
   useMainButton({
     text: confirmed ? 'Запись подтверждена' : 'Подтвердить запись',
-    visible: true,
+    visible: false,
     enabled: !disabled && !confirmed,
     onClick: handleConfirm,
   });
