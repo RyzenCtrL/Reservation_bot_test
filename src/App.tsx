@@ -10,19 +10,28 @@ import { ConfirmButton } from './components/ConfirmButton';
 import { LoadingState } from './components/LoadingState';
 import { ErrorState } from './components/ErrorState';
 import { MyBookings } from './components/MyBookings';
+import { AdminBookings } from './components/AdminBookings';
+import { AdminServices } from './components/AdminServices';
 import { bookingReducer, initialBookingState } from './state/bookingReducer';
 import {
+  cancelAdminBooking,
   cancelBooking,
+  createAdminService,
   createBooking,
+  deleteAdminService,
+  fetchAdminBookings,
+  fetchAdminServices,
+  fetchIsAdmin,
   fetchMasters,
   fetchMyBookings,
   fetchServices,
   fetchSlots,
+  updateAdminService,
 } from './lib/api';
 import { formatDateLabel } from './utils/date';
 import { haptics } from './telegram/haptics';
 import { useRawInitData } from './telegram/useRawInitData';
-import type { Master, MyBooking, Service, Step, TimeSlot } from './types';
+import type { AdminBooking, Master, MyBooking, Service, ServiceInput, Step, TimeSlot } from './types';
 
 const slideVariants = {
   enter: (direction: 1 | -1) => ({ opacity: 0, x: direction * 24 }),
@@ -35,14 +44,22 @@ const BOOKING_ERROR_MESSAGES: Record<string, string> = {
   outside_hours: 'Мастер не работает в это время — выберите другой слот.',
   in_past: 'Это время уже прошло — выберите другое.',
   unauthorized: 'Не удалось подтвердить, что это вы. Откройте приложение заново через бота.',
+  invalid_phone: 'Проверьте номер телефона.',
+  too_many_bookings: 'У вас уже слишком много активных записей. Отмените лишние в разделе «Мои записи».',
 };
+
+function isValidPhone(phone: string): boolean {
+  return phone.replace(/\D/g, '').length >= 10;
+}
 
 function App() {
   const [state, dispatch] = useReducer(bookingReducer, initialBookingState);
   const { step, serviceId, masterId, dateISO, time, direction, confirmed } = state;
   const rawInitData = useRawInitData();
 
-  const [mode, setMode] = useState<'booking' | 'my-bookings'>('booking');
+  const [mode, setMode] = useState<'booking' | 'my-bookings' | 'admin'>('booking');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminTab, setAdminTab] = useState<'bookings' | 'services'>('bookings');
 
   const [services, setServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(true);
@@ -58,11 +75,21 @@ function App() {
 
   const [submitting, setSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [phone, setPhone] = useState('');
 
   const [myBookings, setMyBookings] = useState<MyBooking[]>([]);
   const [myBookingsLoading, setMyBookingsLoading] = useState(false);
   const [myBookingsError, setMyBookingsError] = useState(false);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+
+  const [adminBookings, setAdminBookings] = useState<AdminBooking[]>([]);
+  const [adminBookingsLoading, setAdminBookingsLoading] = useState(false);
+  const [adminBookingsError, setAdminBookingsError] = useState(false);
+  const [adminCancellingId, setAdminCancellingId] = useState<number | null>(null);
+
+  const [adminServices, setAdminServices] = useState<Service[]>([]);
+  const [adminServicesLoading, setAdminServicesLoading] = useState(false);
+  const [adminServicesError, setAdminServicesError] = useState(false);
 
   const loadServices = useCallback(() => {
     setServicesLoading(true);
@@ -139,6 +166,87 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    if (!rawInitData) {
+      setIsAdmin(false);
+      return;
+    }
+    fetchIsAdmin(rawInitData).then(setIsAdmin);
+  }, [rawInitData]);
+
+  const loadAdminBookings = useCallback(() => {
+    if (!rawInitData) return;
+    setAdminBookingsLoading(true);
+    setAdminBookingsError(false);
+    fetchAdminBookings(rawInitData)
+      .then(setAdminBookings)
+      .catch(() => setAdminBookingsError(true))
+      .finally(() => setAdminBookingsLoading(false));
+  }, [rawInitData]);
+
+  const loadAdminServices = useCallback(() => {
+    if (!rawInitData) return;
+    setAdminServicesLoading(true);
+    setAdminServicesError(false);
+    fetchAdminServices(rawInitData)
+      .then(setAdminServices)
+      .catch(() => setAdminServicesError(true))
+      .finally(() => setAdminServicesLoading(false));
+  }, [rawInitData]);
+
+  const openAdmin = () => {
+    haptics.selection();
+    setMode('admin');
+    setAdminTab('bookings');
+    loadAdminBookings();
+  };
+
+  const closeAdmin = () => {
+    haptics.selection();
+    setMode('booking');
+  };
+
+  const handleAdminTabChange = (tab: 'bookings' | 'services') => {
+    haptics.selection();
+    setAdminTab(tab);
+    if (tab === 'bookings' && adminBookings.length === 0) loadAdminBookings();
+    if (tab === 'services' && adminServices.length === 0) loadAdminServices();
+  };
+
+  const handleAdminCancelBooking = async (id: number) => {
+    if (!rawInitData || adminCancellingId !== null) return;
+    setAdminCancellingId(id);
+    const ok = await cancelAdminBooking(rawInitData, id);
+    setAdminCancellingId(null);
+    if (ok) {
+      haptics.notification('success');
+      loadAdminBookings();
+    } else {
+      haptics.notification('error');
+    }
+  };
+
+  const handleCreateService = async (input: ServiceInput) => {
+    if (!rawInitData) return { ok: false as const, error: 'unauthorized' };
+    const result = await createAdminService(rawInitData, input);
+    if (result.ok) loadAdminServices();
+    return result;
+  };
+
+  const handleUpdateService = async (id: string, input: ServiceInput) => {
+    if (!rawInitData) return { ok: false as const, error: 'unauthorized' };
+    const result = await updateAdminService(rawInitData, id, input);
+    if (result.ok) loadAdminServices();
+    return result;
+  };
+
+  const handleDeleteService = async (id: string) => {
+    if (!rawInitData) return { ok: false as const, error: 'unauthorized' };
+    const result = await deleteAdminService(rawInitData, id);
+    if (result.ok) loadAdminServices();
+    return result;
+  };
+
   const service = services.find((s) => s.id === serviceId) ?? null;
   const master = masters.find((m) => m.id === masterId) ?? null;
 
@@ -158,6 +266,11 @@ function App() {
       return;
     }
 
+    if (!isValidPhone(phone)) {
+      setBookingError(BOOKING_ERROR_MESSAGES.invalid_phone);
+      return;
+    }
+
     setSubmitting(true);
     setBookingError(null);
 
@@ -167,6 +280,7 @@ function App() {
       serviceId: service.id,
       date: dateISO,
       time,
+      phone: phone.trim(),
     });
 
     setSubmitting(false);
@@ -187,8 +301,89 @@ function App() {
 
   const handleRestart = () => {
     haptics.selection();
+    setPhone('');
     dispatch({ type: 'RESET' });
   };
+
+  if (mode === 'admin') {
+    return (
+      <div className="flex min-h-full min-w-0 flex-1 flex-col overflow-x-hidden">
+        <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="safe-top px-5 pt-4">
+            <div className="mb-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={closeAdmin}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-text active:bg-surface-2"
+                aria-label="Назад"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M15 18l-6-6 6-6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              <h1 className="text-2xl font-semibold text-text">Админка</h1>
+            </div>
+
+            <div className="mb-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleAdminTabChange('bookings')}
+                className={`flex min-h-[36px] flex-1 items-center justify-center rounded-xl border text-sm font-medium ${
+                  adminTab === 'bookings'
+                    ? 'border-accent bg-accent-soft text-text'
+                    : 'border-border text-text-muted active:bg-surface-2'
+                }`}
+              >
+                Записи
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAdminTabChange('services')}
+                className={`flex min-h-[36px] flex-1 items-center justify-center rounded-xl border text-sm font-medium ${
+                  adminTab === 'services'
+                    ? 'border-accent bg-accent-soft text-text'
+                    : 'border-border text-text-muted active:bg-surface-2'
+                }`}
+              >
+                Услуги
+              </button>
+            </div>
+          </div>
+
+          {adminTab === 'bookings' ? (
+            adminBookingsLoading ? (
+              <LoadingState label="Загружаем записи..." />
+            ) : adminBookingsError ? (
+              <ErrorState onRetry={loadAdminBookings} />
+            ) : (
+              <AdminBookings
+                bookings={adminBookings}
+                onCancel={handleAdminCancelBooking}
+                cancellingId={adminCancellingId}
+              />
+            )
+          ) : adminServicesLoading ? (
+            <LoadingState label="Загружаем услуги..." />
+          ) : adminServicesError ? (
+            <ErrorState onRetry={loadAdminServices} />
+          ) : (
+            <AdminServices
+              services={adminServices}
+              onCreate={handleCreateService}
+              onUpdate={handleUpdateService}
+              onDelete={handleDeleteService}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (mode === 'my-bookings') {
     return (
@@ -238,10 +433,15 @@ function App() {
       content = (
         <>
           <ScreenHeader step={step} title="Выберите услугу" subtitle="Что будем делать сегодня?" />
-          <div className="-mt-2 px-5 pb-2">
+          <div className="-mt-2 flex gap-4 px-5 pb-2">
             <button type="button" onClick={openMyBookings} className="text-sm font-medium text-accent">
               Мои записи →
             </button>
+            {isAdmin && (
+              <button type="button" onClick={openAdmin} className="text-sm font-medium text-accent">
+                ⚙️ Админка
+              </button>
+            )}
           </div>
           {servicesLoading ? (
             <LoadingState label="Загружаем услуги..." />
@@ -351,6 +551,20 @@ function App() {
               onEdit={handleEdit}
             />
           )}
+          <div className="px-5 pb-6">
+            <label className="mb-1.5 block text-sm text-text-muted" htmlFor="client-phone">
+              Телефон для связи
+            </label>
+            <input
+              id="client-phone"
+              type="tel"
+              inputMode="tel"
+              placeholder="+7 900 123-45-67"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="min-h-[44px] w-full rounded-xl border border-border bg-surface px-4 text-text placeholder:text-text-faint focus:border-accent focus:outline-none"
+            />
+          </div>
         </>
       );
       break;
@@ -377,7 +591,7 @@ function App() {
 
       {step === 'confirm' && !confirmed && (
         <ConfirmButton
-          disabled={!service || !master || !dateISO || !time || submitting}
+          disabled={!service || !master || !dateISO || !time || !isValidPhone(phone) || submitting}
           confirmed={confirmed}
           onConfirm={handleConfirm}
         />

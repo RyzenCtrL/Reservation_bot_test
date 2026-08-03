@@ -11,12 +11,15 @@ import {
   weekdayFromISO,
 } from './_lib/time.js';
 
+const MAX_ACTIVE_BOOKINGS_PER_CLIENT = 5;
+
 interface CreateBookingBody {
   initData?: string;
   masterId?: string;
   serviceId?: string;
   date?: string;
   time?: string;
+  phone?: string;
 }
 
 interface CancelBookingBody {
@@ -69,10 +72,16 @@ async function handleList(req: VercelRequest, res: VercelResponse) {
 
 async function handleCreate(req: VercelRequest, res: VercelResponse) {
   const body = req.body as CreateBookingBody;
-  const { initData, masterId, serviceId, date, time } = body;
+  const { initData, masterId, serviceId, date, time, phone } = body;
 
-  if (!masterId || !serviceId || !date || !time || !initData) {
+  if (!masterId || !serviceId || !date || !time || !initData || !phone) {
     res.status(400).json({ ok: false, error: 'missing_fields' });
+    return;
+  }
+
+  const phoneDigits = phone.replace(/\D/g, '');
+  if (phoneDigits.length < 10) {
+    res.status(400).json({ ok: false, error: 'invalid_phone' });
     return;
   }
 
@@ -80,6 +89,15 @@ async function handleCreate(req: VercelRequest, res: VercelResponse) {
   const user = token ? validateInitData(initData, token) : null;
   if (!user) {
     res.status(401).json({ ok: false, error: 'unauthorized' });
+    return;
+  }
+
+  const { rows: activeCountRows } = await sql`
+    SELECT count(*) AS count FROM bookings
+    WHERE client_telegram_id = ${user.id} AND status = 'active' AND booking_date >= ${salonTodayISO()}::date
+  `;
+  if (Number(activeCountRows[0].count) >= MAX_ACTIVE_BOOKINGS_PER_CLIENT) {
+    res.status(429).json({ ok: false, error: 'too_many_bookings' });
     return;
   }
 
@@ -130,8 +148,8 @@ async function handleCreate(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { rows } = await sql`
-      INSERT INTO bookings (master_id, service_id, booking_date, booking_time, duration_min, client_telegram_id, client_name, status)
-      SELECT ${masterId}, ${serviceId}, ${date}::date, ${time}::time, ${durationMin}, ${user.id}, ${clientName}, 'active'
+      INSERT INTO bookings (master_id, service_id, booking_date, booking_time, duration_min, client_telegram_id, client_name, client_phone, status)
+      SELECT ${masterId}, ${serviceId}, ${date}::date, ${time}::time, ${durationMin}, ${user.id}, ${clientName}, ${phone}, 'active'
       WHERE NOT EXISTS (
         SELECT 1 FROM bookings b
         WHERE b.master_id = ${masterId}
@@ -179,6 +197,7 @@ async function handleCreate(req: VercelRequest, res: VercelResponse) {
             '🔔 Новая запись',
             '',
             `👤 Клиент: ${clientName}${user.username ? ` (@${user.username})` : ''}`,
+            `📞 ${phone}`,
             `${service.emoji} ${service.name}`,
             `🧑‍🎨 Мастер: ${master.name}`,
             `📅 ${dateLabel} в ${time}`,

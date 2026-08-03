@@ -56,5 +56,8 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS duration_min integer NOT NULL DEFA
 -- up their slot instead of being deleted.
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
 
+-- Contact number so the salon can reach the client about this booking.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_phone text;
+
 CREATE INDEX IF NOT EXISTS bookings_master_date_idx ON bookings (master_id, booking_date);
 CREATE INDEX IF NOT EXISTS bookings_client_idx ON bookings (client_telegram_id);

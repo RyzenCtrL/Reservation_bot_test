@@ -36,3 +36,23 @@ export interface MyBooking {
   price: number;
   masterName: string;
 }
+
+export interface AdminBooking {
+  id: number;
+  date: string;
+  time: string;
+  clientName: string;
+  clientPhone: string;
+  serviceName: string;
+  serviceEmoji: string;
+  price: number;
+  masterName: string;
+}
+
+export interface ServiceInput {
+  name: string;
+  emoji: string;
+  price: number;
+  durationMin: number;
+  description: string;
+}

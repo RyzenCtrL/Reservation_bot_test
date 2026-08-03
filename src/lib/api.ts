@@ -1,4 +1,4 @@
-import type { Master, MyBooking, Service, TimeSlot } from '../types';
+import type { AdminBooking, Master, MyBooking, Service, ServiceInput, TimeSlot } from '../types';
 
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -26,11 +26,23 @@ export interface CreateBookingPayload {
   serviceId: string;
   date: string;
   time: string;
+  phone: string;
 }
 
 export type CreateBookingResult =
   | { ok: true; bookingId: number }
-  | { ok: false; error: 'slot_taken' | 'outside_hours' | 'in_past' | 'unauthorized' | 'internal_error' | 'network_error' };
+  | {
+      ok: false;
+      error:
+        | 'slot_taken'
+        | 'outside_hours'
+        | 'in_past'
+        | 'unauthorized'
+        | 'invalid_phone'
+        | 'too_many_bookings'
+        | 'internal_error'
+        | 'network_error';
+    };
 
 export async function createBooking(payload: CreateBookingPayload): Promise<CreateBookingResult> {
   try {
@@ -63,5 +75,93 @@ export async function cancelBooking(initData: string, bookingId: number): Promis
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+export async function fetchIsAdmin(initData: string): Promise<boolean> {
+  try {
+    const data = await getJSON<{ isAdmin: boolean }>(`/api/admin/whoami?initData=${encodeURIComponent(initData)}`);
+    return data.isAdmin;
+  } catch {
+    return false;
+  }
+}
+
+export function fetchAdminBookings(initData: string): Promise<AdminBooking[]> {
+  return getJSON<{ bookings: AdminBooking[] }>(
+    `/api/admin/bookings?initData=${encodeURIComponent(initData)}`,
+  ).then((data) => data.bookings);
+}
+
+export async function cancelAdminBooking(initData: string, bookingId: number): Promise<boolean> {
+  try {
+    const res = await fetch('/api/admin/bookings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData, bookingId }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export function fetchAdminServices(initData: string): Promise<Service[]> {
+  return getJSON<{ services: Service[] }>(
+    `/api/admin/services?initData=${encodeURIComponent(initData)}`,
+  ).then((data) => data.services);
+}
+
+export type AdminServiceResult = { ok: true } | { ok: false; error: string };
+
+export async function createAdminService(
+  initData: string,
+  input: ServiceInput,
+): Promise<AdminServiceResult> {
+  try {
+    const res = await fetch('/api/admin/services', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData, ...input }),
+    });
+    const data = await res.json();
+    if (res.ok) return { ok: true };
+    return { ok: false, error: data.error ?? 'internal_error' };
+  } catch {
+    return { ok: false, error: 'network_error' };
+  }
+}
+
+export async function updateAdminService(
+  initData: string,
+  id: string,
+  input: ServiceInput,
+): Promise<AdminServiceResult> {
+  try {
+    const res = await fetch('/api/admin/services', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData, id, ...input }),
+    });
+    const data = await res.json();
+    if (res.ok) return { ok: true };
+    return { ok: false, error: data.error ?? 'internal_error' };
+  } catch {
+    return { ok: false, error: 'network_error' };
+  }
+}
+
+export async function deleteAdminService(initData: string, id: string): Promise<AdminServiceResult> {
+  try {
+    const res = await fetch('/api/admin/services', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData, id }),
+    });
+    const data = await res.json();
+    if (res.ok) return { ok: true };
+    return { ok: false, error: data.error ?? 'internal_error' };
+  } catch {
+    return { ok: false, error: 'network_error' };
   }
 }
