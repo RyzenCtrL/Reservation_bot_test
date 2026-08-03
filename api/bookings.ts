@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-import { validateInitData } from './_lib/initData';
-import { getAdminChatId, getBotToken, sendTelegramMessage } from './_lib/telegram';
+import { validateInitData } from './_lib/initData.js';
+import { getAdminChatId, getBotToken, sendTelegramMessage } from './_lib/telegram.js';
 import {
   formatSalonDate,
   pgTimeToMin,
@@ -9,7 +9,7 @@ import {
   salonTodayISO,
   timeStrToMin,
   weekdayFromISO,
-} from './_lib/time';
+} from './_lib/time.js';
 
 interface CreateBookingBody {
   initData?: string;

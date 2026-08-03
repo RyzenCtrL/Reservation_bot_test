@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-import { getBotToken, sendTelegramMessage } from './_lib/telegram';
-import { formatSalonDate, salonTodayISO } from './_lib/time';
+import { getBotToken, sendTelegramMessage } from './_lib/telegram.js';
+import { formatSalonDate, salonTodayISO } from './_lib/time.js';
 
 function tomorrowISO(): string {
   const today = salonTodayISO();

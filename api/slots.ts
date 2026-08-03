@@ -7,7 +7,7 @@ import {
   salonTodayISO,
   timeStrToMin,
   weekdayFromISO,
-} from './_lib/time';
+} from './_lib/time.js';
 
 const STEP_MIN = 30;
 

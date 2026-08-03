@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sendTelegramMessage } from './_lib/telegram';
+import { sendTelegramMessage } from './_lib/telegram.js';
 
 const WELCOME_TEXT = [
   'Привет! 👋 Это бот записи в бьюти-салон.',
