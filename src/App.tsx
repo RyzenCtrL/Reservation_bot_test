@@ -433,7 +433,7 @@ function App() {
       content = (
         <>
           <ScreenHeader step={step} title="Выберите услугу" subtitle="Что будем делать сегодня?" />
-          <div className="-mt-2 flex gap-4 px-5 pb-2">
+          <div className="mt-3 flex gap-4 px-5 pb-2">
             <button type="button" onClick={openMyBookings} className="text-sm font-medium text-accent">
               Мои записи →
             </button>

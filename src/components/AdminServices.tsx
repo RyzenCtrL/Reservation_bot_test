@@ -90,7 +90,7 @@ export function AdminServices({ services, onCreate, onUpdate, onDelete }: AdminS
   };
 
   return (
-    <div className="flex flex-col gap-3 px-5 pb-6">
+    <div className="flex min-w-0 flex-col gap-3 px-5 pb-6">
       {!formOpen && (
         <button
           type="button"
@@ -102,25 +102,25 @@ export function AdminServices({ services, onCreate, onUpdate, onDelete }: AdminS
       )}
 
       {formOpen && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+        <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
           <p className="text-sm font-medium text-text">
             {editingId ? 'Изменить услугу' : 'Новая услуга'}
           </p>
 
           {formError && <p className="text-sm text-red-300">{formError}</p>}
 
-          <div className="flex gap-2">
+          <div className="flex min-w-0 gap-2">
             <input
               value={form.emoji}
               onChange={(e) => setForm({ ...form, emoji: e.target.value })}
               placeholder="💇"
-              className="min-h-[40px] w-16 rounded-lg border border-border bg-bg px-3 text-center text-text focus:border-accent focus:outline-none"
+              className="min-h-[40px] w-14 min-w-0 shrink-0 rounded-lg border border-border bg-bg px-2 text-center text-text focus:border-accent focus:outline-none"
             />
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Название"
-              className="min-h-[40px] flex-1 rounded-lg border border-border bg-bg px-3 text-text placeholder:text-text-faint focus:border-accent focus:outline-none"
+              className="min-h-[40px] min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 text-text placeholder:text-text-faint focus:border-accent focus:outline-none"
             />
           </div>
 
@@ -129,23 +129,25 @@ export function AdminServices({ services, onCreate, onUpdate, onDelete }: AdminS
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             placeholder="Описание"
             rows={2}
-            className="min-h-[40px] rounded-lg border border-border bg-bg px-3 py-2 text-text placeholder:text-text-faint focus:border-accent focus:outline-none"
+            className="min-h-[40px] min-w-0 rounded-lg border border-border bg-bg px-3 py-2 text-text placeholder:text-text-faint focus:border-accent focus:outline-none"
           />
 
-          <div className="flex gap-2">
+          <div className="flex min-w-0 gap-2">
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={form.price || ''}
-              onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+              onChange={(e) => setForm({ ...form, price: Number(e.target.value.replace(/\D/g, '')) })}
               placeholder="Цена, ₽"
-              className="min-h-[40px] flex-1 rounded-lg border border-border bg-bg px-3 text-text placeholder:text-text-faint focus:border-accent focus:outline-none"
+              className="min-h-[40px] min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 text-text placeholder:text-text-faint focus:border-accent focus:outline-none"
             />
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={form.durationMin || ''}
-              onChange={(e) => setForm({ ...form, durationMin: Number(e.target.value) })}
+              onChange={(e) => setForm({ ...form, durationMin: Number(e.target.value.replace(/\D/g, '')) })}
               placeholder="Мин."
-              className="min-h-[40px] w-24 rounded-lg border border-border bg-bg px-3 text-text placeholder:text-text-faint focus:border-accent focus:outline-none"
+              className="min-h-[40px] w-16 min-w-0 shrink-0 rounded-lg border border-border bg-bg px-2 text-text placeholder:text-text-faint focus:border-accent focus:outline-none"
             />
           </div>
 
