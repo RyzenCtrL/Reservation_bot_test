@@ -229,7 +229,7 @@ async function handleCancel(req: VercelRequest, res: VercelResponse) {
     res.status(404).json({ ok: false, error: 'not_found' });
     return;
   }
-  if (rows[0].clientTelegramId !== user.id) {
+  if (Number(rows[0].clientTelegramId) !== user.id) {
     res.status(403).json({ ok: false, error: 'forbidden' });
     return;
   }

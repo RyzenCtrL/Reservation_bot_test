@@ -39,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     rows.map((row) =>
       sendTelegramMessage(
         token,
-        row.clientTelegramId as number,
+        row.clientTelegramId as string,
         [
           `⏰ Напоминание: завтра, ${dateLabel}, у вас запись`,
           '',
