@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sendTelegramMessage } from './_lib/telegram';
 
 const WELCOME_TEXT = [
   'Привет! 👋 Это бот записи в бьюти-салон.',
@@ -7,20 +8,6 @@ const WELCOME_TEXT = [
   '',
   'Нажмите кнопку ниже, чтобы начать запись 💅',
 ].join('\n');
-
-async function sendWelcomeMessage(chatId: number, token: string, miniAppUrl: string) {
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: WELCOME_TEXT,
-      reply_markup: {
-        inline_keyboard: [[{ text: '✨ Записаться', web_app: { url: miniAppUrl } }]],
-      },
-    }),
-  });
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -47,7 +34,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const text: string | undefined = message?.text;
 
   if (message && typeof text === 'string' && text.startsWith('/start')) {
-    await sendWelcomeMessage(message.chat.id, token, miniAppUrl);
+    await sendTelegramMessage(token, message.chat.id, WELCOME_TEXT, {
+      replyMarkup: { inline_keyboard: [[{ text: '✨ Записаться', web_app: { url: miniAppUrl } }]] },
+    });
   }
 
   res.status(200).send('ok');

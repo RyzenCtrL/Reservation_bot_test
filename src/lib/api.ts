@@ -1,4 +1,4 @@
-import type { Master, Service, TimeSlot } from '../types';
+import type { Master, MyBooking, Service, TimeSlot } from '../types';
 
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -15,23 +15,22 @@ export function fetchMasters(serviceId?: string): Promise<Master[]> {
   return getJSON<{ masters: Master[] }>(`/api/masters${query}`).then((data) => data.masters);
 }
 
-export function fetchSlots(masterId: string, date: string): Promise<TimeSlot[]> {
-  const query = `masterId=${encodeURIComponent(masterId)}&date=${encodeURIComponent(date)}`;
+export function fetchSlots(masterId: string, date: string, serviceId: string): Promise<TimeSlot[]> {
+  const query = `masterId=${encodeURIComponent(masterId)}&date=${encodeURIComponent(date)}&serviceId=${encodeURIComponent(serviceId)}`;
   return getJSON<{ slots: TimeSlot[] }>(`/api/slots?${query}`).then((data) => data.slots);
 }
 
 export interface CreateBookingPayload {
+  initData: string;
   masterId: string;
   serviceId: string;
   date: string;
   time: string;
-  clientTelegramId: number;
-  clientName?: string;
 }
 
 export type CreateBookingResult =
   | { ok: true; bookingId: number }
-  | { ok: false; error: 'slot_taken' | 'internal_error' | 'network_error' };
+  | { ok: false; error: 'slot_taken' | 'outside_hours' | 'in_past' | 'unauthorized' | 'internal_error' | 'network_error' };
 
 export async function createBooking(payload: CreateBookingPayload): Promise<CreateBookingResult> {
   try {
@@ -45,5 +44,24 @@ export async function createBooking(payload: CreateBookingPayload): Promise<Crea
     return { ok: false, error: data.error ?? 'internal_error' };
   } catch {
     return { ok: false, error: 'network_error' };
+  }
+}
+
+export function fetchMyBookings(initData: string): Promise<MyBooking[]> {
+  return getJSON<{ bookings: MyBooking[] }>(`/api/bookings?initData=${encodeURIComponent(initData)}`).then(
+    (data) => data.bookings,
+  );
+}
+
+export async function cancelBooking(initData: string, bookingId: number): Promise<boolean> {
+  try {
+    const res = await fetch('/api/bookings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData, bookingId }),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }

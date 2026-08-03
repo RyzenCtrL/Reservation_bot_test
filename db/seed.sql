@@ -25,3 +25,11 @@ INSERT INTO master_services (master_id, service_id) VALUES
   ('sofia', 'haircut-women'), ('sofia', 'brows'),
   ('denis', 'haircut-men'), ('denis', 'beard'), ('denis', 'coloring')
 ON CONFLICT DO NOTHING;
+
+-- Working hours: Mon-Sat 9:00-20:30, Sunday off, for every master.
+-- Edit per-master rows here if someone should have a different schedule.
+INSERT INTO master_schedule (master_id, weekday, start_time, end_time)
+SELECT m.id, wd, '09:00', '20:30'
+FROM masters m
+CROSS JOIN generate_series(1, 6) AS wd
+ON CONFLICT (master_id, weekday) DO NOTHING;

@@ -1,39 +1,64 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import {
+  minToTimeStr,
+  pgTimeToMin,
+  salonNowMinutes,
+  salonTodayISO,
+  timeStrToMin,
+  weekdayFromISO,
+} from './_lib/time';
 
-const SALON_OPEN_MIN = 9 * 60;
-const SALON_CLOSE_MIN = 20 * 60 + 30;
 const STEP_MIN = 30;
 
-function buildAllSlots(): string[] {
-  const slots: string[] = [];
-  for (let m = SALON_OPEN_MIN; m <= SALON_CLOSE_MIN; m += STEP_MIN) {
-    const h = String(Math.floor(m / 60)).padStart(2, '0');
-    const mm = String(m % 60).padStart(2, '0');
-    slots.push(`${h}:${mm}`);
-  }
-  return slots;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { masterId, date } = req.query;
+  const { masterId, date, serviceId } = req.query;
 
-  if (typeof masterId !== 'string' || typeof date !== 'string') {
-    res.status(400).json({ error: 'masterId and date query params are required' });
+  if (typeof masterId !== 'string' || typeof date !== 'string' || typeof serviceId !== 'string') {
+    res.status(400).json({ error: 'masterId, date and serviceId query params are required' });
     return;
   }
 
-  const { rows } = await sql`
-    SELECT to_char(booking_time, 'HH24:MI') AS time
-    FROM bookings
-    WHERE master_id = ${masterId} AND booking_date = ${date}
+  const { rows: serviceRows } = await sql`
+    SELECT duration_min FROM services WHERE id = ${serviceId}
   `;
-  const booked = new Set(rows.map((row) => row.time as string));
+  if (serviceRows.length === 0) {
+    res.status(404).json({ error: 'service_not_found' });
+    return;
+  }
+  const durationMin = serviceRows[0].duration_min as number;
 
-  const slots = buildAllSlots().map((time) => ({
-    time,
-    status: booked.has(time) ? 'busy' : 'available',
-  }));
+  const weekday = weekdayFromISO(date);
+  const { rows: scheduleRows } = await sql`
+    SELECT start_time, end_time FROM master_schedule
+    WHERE master_id = ${masterId} AND weekday = ${weekday}
+  `;
+  if (scheduleRows.length === 0) {
+    res.status(200).json({ slots: [] });
+    return;
+  }
+  const startMin = pgTimeToMin(scheduleRows[0].start_time as string);
+  const endMin = pgTimeToMin(scheduleRows[0].end_time as string);
+
+  const { rows: bookingRows } = await sql`
+    SELECT to_char(booking_time, 'HH24:MI') AS time, duration_min
+    FROM bookings
+    WHERE master_id = ${masterId} AND booking_date = ${date} AND status = 'active'
+  `;
+  const busyRanges = bookingRows.map((row) => {
+    const start = timeStrToMin(row.time as string);
+    return [start, start + (row.duration_min as number)] as const;
+  });
+
+  const isToday = date === salonTodayISO();
+  const nowMin = isToday ? salonNowMinutes() : -1;
+
+  const slots: { time: string; status: 'available' | 'busy' }[] = [];
+  for (let m = startMin; m + durationMin <= endMin; m += STEP_MIN) {
+    const overlapsBusy = busyRanges.some(([busyStart, busyEnd]) => m < busyEnd && m + durationMin > busyStart);
+    const isPast = isToday && m <= nowMin;
+    slots.push({ time: minToTimeStr(m), status: overlapsBusy || isPast ? 'busy' : 'available' });
+  }
 
   res.status(200).json({ slots });
 }

@@ -25,3 +25,14 @@ export interface TimeSlot {
 export type Step = 'service' | 'master' | 'date' | 'time' | 'confirm';
 
 export const STEP_ORDER: Step[] = ['service', 'master', 'date', 'time', 'confirm'];
+
+export interface MyBooking {
+  id: number;
+  date: string;
+  time: string;
+  status: 'active' | 'cancelled';
+  serviceName: string;
+  serviceEmoji: string;
+  price: number;
+  masterName: string;
+}
